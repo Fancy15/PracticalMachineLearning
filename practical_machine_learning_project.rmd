@@ -1,0 +1,125 @@
+---
+title: "Practical Machine Learning Project"
+author: "Thuy Dao"
+date: "October 16, 2016"
+output: html_document
+---
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Data Processing
+
+Load the training and testing datasets.  All columns with mostly NA, blank, and #DIV/0! should be removed. The user_name, X, timestamp and window columns will also be removed because they will not be used in the models.
+
+```{r}
+library(ggplot2)
+library(plyr)
+library(caret)
+library(randomForest)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+
+setwd("C:/Users/Owner/Documents/Coursera_PracticalMachineLearning/week4/project")
+dfTraining <- read.csv("pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+dfTesting <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+
+dim(dfTraining)
+dim(dfTesting)
+
+training1 <- dfTraining[ , ! apply( dfTraining , 2 , function(x) any(is.na(x)) ) ]
+testing1 <- dfTesting[ , ! apply( dfTesting , 2 , function(x) any(is.na(x)) ) ]
+
+training2 <- training1[, -grep("user_name|^X|timestamp|window", colnames(training1))]
+testing2 <- testing1[, -grep("user_name|^X|timestamp|window", colnames(testing1))]
+
+dim(training2)
+dim(testing2)
+```
+
+The training dataset contains 160 variables with 19622 observations, and the testing dataset contains 160 variables with 20 observations to test the performance of prediction of the classification model.  After the datasets are cleaned, the training dataset contains 53 variables with 19622 rows, and the testing dataset also contains 53 variables with 20 rows.
+
+##Data Splitting
+
+The training data was splitted up - 70%  became the training data, and 30% became the testing data.
+
+```{r}
+
+set.seed(39523) 
+inTrain <- createDataPartition(training2$classe, p = 0.7, list = FALSE)
+train <- training2[inTrain, ]
+test <- training2[-inTrain, ]
+
+dim(train)
+dim(test)
+```
+
+
+##Prediction Models
+
+The 10-fold cross validation is used when applying the algorithm. 
+
+```{r}
+
+train_control <- trainControl(method = "cv", number = 10)
+
+```
+
+###Classification Tree
+
+```{r}
+
+rpart_fit <- train(classe ~ ., data = train, method = "rpart", trControl = train_control)
+rpart_fit
+
+fancyRpartPlot(rpart_fit$finalModel)
+
+rpart_predict <- predict(rpart_fit, test)
+rpart_result <- confusionMatrix(test$classe, rpart_predict)
+rpart_result
+
+```
+
+The classification tree model accuracy rate is around 49%.
+
+###Random Forest
+
+```{r}
+
+rf_fit <- train(classe ~ ., data = train, method = "rf", trControl = train_control)
+rf_fit
+
+rf_predict <- predict(rf_fit, test)
+rf_result <- confusionMatrix(test$classe, rf_predict)
+rf_result
+
+```
+
+##Out of sample error
+
+```{r}
+
+outOfSampleError_accuracy <- sum(rf_predict == test$classe)/length(rf_predict)
+outOfSampleError_accuracy
+
+outOfSampleError <- 1 - outOfSampleError_accuracy
+outOfSampleError
+
+paste0("Out of sample error estimation: ", round(outOfSampleError*100, digits = 2), "%")
+
+```
+
+The random forest model has accuracy rate of 99% and out of sample error of 0.63%.  The random forest method is better than classification tree method
+
+###Test Data
+
+The random forest model is applied to the original test data set to answer the quiz questions.
+
+```{r}
+
+rfTest_predict <- predict(rf_fit, testing2, type = "raw")
+rfTest_predict
+
+```
